@@ -21,8 +21,9 @@ use chimera::phonetics::sing::{
     LegatoFrom, NoteOnOptions, SongOptions, SungNote, midi_to_hz, plan_note_off, plan_note_on,
     plan_song,
 };
+use chimera::phonetics::russian::RussianG2P;
 use chimera::phonetics::songs::DEMO_SONGS;
-use chimera::phonetics::syllables::lyrics_to_syllables;
+use chimera::phonetics::syllables::{LyricLang, lyric_language, lyrics_to_syllables};
 use chimera::phonetics::{Intonation, Plan, Syllable};
 use chimera::voice::human_voice::{HumanVoice, SCOPE_POINTS, SourcePatch, VoiceTelemetry};
 use std::io::Read;
@@ -509,8 +510,12 @@ pub fn notes(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     let bpm = j["bpm"].as_f64().ok_or("bpm missing")?;
     let vibrato = j["vibrato"].as_f64().unwrap_or(35.0);
     let raw: Vec<[f64; 2]> = serde_json::from_value(j["notes"].clone()).map_err(|e| format!("notes: {e}"))?;
-    let g = g2p()?;
-    let syl = lyrics_to_syllables(j["lyrics"].as_str().ok_or("lyrics missing")?, &g);
+    let lyrics = j["lyrics"].as_str().ok_or("lyrics missing")?;
+    // English stays the dictionary path. Russian is the other front end; it does not load CMUdict.
+    let syl = match lyric_language(lyrics, j["language"].as_str())? {
+        LyricLang::En => lyrics_to_syllables(lyrics, &g2p()?),
+        LyricLang::Ru => lyrics_to_syllables(lyrics, &RussianG2P),
+    };
     let sounding = raw.iter().filter(|n| n[0] > 0.0).count();
     if syl.len() != sounding {
         return Err(format!("{} syllables for {sounding} notes: {}", syl.len(),

@@ -4,7 +4,8 @@
  * (the previous syllable's coda runs straight into the next onset); a "-" in the lyrics holds
  * the vowel onto a new pitch (melisma). Releasing the sounding key while another is still down
  * glides back to that key on the same vowel. Key velocity sets the breath.
- * Demo songs are planned whole (planSong) and sent as one score.
+ * Demo songs are planned whole (planSong) and sent as one score. Cyrillic lyrics take the
+ * Russian front end (the same call, chosen from the letters).
  */
 import { create } from "zustand";
 import { engine } from "../audio/AudioEngine.ts";

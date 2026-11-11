@@ -124,7 +124,11 @@ fn dispatch(st: &mut State, req: &Value) -> Res {
         }
         "g2pPhrases" => to_json(&st.g2p.to_phrases(&arg::<String>(req, "text")?)),
         "g2pWord" => to_json(&st.g2p.word(&arg::<String>(req, "word")?, arg::<Option<bool>>(req, "reduce")?.unwrap_or(true))),
-        "lyricsToSyllables" => to_json(&syllables::lyrics_to_syllables(&arg::<String>(req, "text")?, &st.g2p)),
+        "lyricsToSyllables" => {
+            let text = arg::<String>(req, "text")?;
+            let language = arg::<Option<String>>(req, "language")?;
+            to_json(&syllables::sing_lyrics(&text, language.as_deref(), &st.g2p)?)
+        }
         // ---------------------------------------------------------------- creatures
         "creaturePreview" => {
             let id: String = arg(req, "id")?;

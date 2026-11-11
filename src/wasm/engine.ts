@@ -112,9 +112,12 @@ export class EnglishG2P {
   }
 }
 
-/** Lyrics → sung syllables, through the page's dictionary (see EnglishG2P). */
-export function lyricsToSyllables(text: string): Syllable[] {
-  return call("lyricsToSyllables", { text });
+/**
+ * Lyrics → sung syllables. `language` is `"en"` or `"ru"`. Omitted, a line with any Cyrillic
+ * letter takes the Russian front end; anything else stays on the English dictionary.
+ */
+export function lyricsToSyllables(text: string, language?: string): Syllable[] {
+  return call("lyricsToSyllables", language ? { text, language } : { text });
 }
 
 // ------------------------------------------------------------------ planning
