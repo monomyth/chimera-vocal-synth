@@ -185,7 +185,8 @@ consumption or sums (noise sources, gestures). It retunes nothing. The checks:
 - The voices directly: `HumanVoice`, `CreatureVoice`.
 - The planners: `plan_phrases`, `plan_song`, `plan_note_on/off`, `lyrics_to_syllables`, and
   `EnglishG2P` with a dictionary given as `&str`. `RussianG2P` is the other lyric front end
-  (no dictionary); `sing_lyrics` picks one. English output is unchanged.
+  (a small authored stress list, not a copied dictionary); `sing_lyrics` picks one. English
+  output is unchanged.
 
 JDAW's eventual module trait (note-on/off with lyrics and expression read from the notes) is an
 adapter over these, written when JDAW's module interface exists. Designing it now would be

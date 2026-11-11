@@ -3,19 +3,21 @@
 //! Moscow reading, sung rather than spoken: stress is an acute on the vowel (`мо́ре`), an
 //! apostrophe after it (`мо'ре`), or `ё` (always stressed). A monosyllable with no mark is
 //! stressed, except a small list of clitics (`во`, `на`, `не`, …) which stay reduced. A longer
-//! word with no mark is sung with full vowels, so a missing accent is obvious instead of a
-//! guessed stress. Unstressed `а`/`о` become `ɐ` when singing and, in speech (`reduce`), `ɐ`
-//! in the pretonic syllable and `ə` elsewhere. Unstressed `е`/`я` after a consonant become `ɪ`.
+//! word with no mark takes [`dict_stress`] when the word is in that authored list, and otherwise
+//! the last vowel, so the other vowels still reduce. Unstressed `а`/`о` become `ɐ` when singing
+//! (a held note stays a vowel) and, in speech (`reduce`), `ɐ` in the pretonic syllable and `ə`
+//! elsewhere. Unstressed `е`/`я` after a consonant become `ɪ`. Unstressed `у`/`ю` become `ʊ`.
 //!
-//! Palatalization uses phonemes the tract already has. Soft coronals and velars become the
-//! palatal stop, nasal, lateral or fricative (`ть` `c`, `нь` `ɲ`, `ль` `ʎ`, `сь` `ç`, `кь` `c`).
-//! Soft labials and `р` add `j` only before a back vowel; before `и`/`е` the front vowel's own
-//! tongue gesture is the softness, and it is weaker than a native soft labial. `ы` is `ɨ`, `х`
-//! is `x`, `ш`/`ж` are retroflex `ʂ`/`ʐ`. There is no `ɕ`: `щ` is the palatal fricative `ç`,
-//! and `ч` stays the postalveolar affricate `tʃ`, so the two still differ in manner.
+//! A soft consonant is the same constriction plus a palatal tongue-body gesture (`п` → `pʲ`,
+//! `т` → `tʲ`, `л` → `lʲ`, `х` before a soft vowel → `xʲ`). Soft labials and `р` still add `j`
+//! before a back vowel. `ы` is `ɨ`, hard `х` is `x`, `ш`/`ж` are retroflex `ʂ`/`ʐ`. `щ` is the
+//! long alveolo-palatal `ɕ` and `ч` is the affricate `tɕ`, so they differ from `ш`/`ч` of
+//! English (`ʂ` / `tʃ`) in place and from each other in manner.
 //!
 //! Typed hyphens are the sung syllable breaks. They are not word boundaries: voicing and
-//! reduction run across them (`бе-рё-за` keeps a voiced `з`).
+//! reduction run across them (`бе-рё-за` keeps a voiced `з`). In a hyphenated word, an
+//! unstressed `и` or `у` at the start of a piece that also has another vowel is a glide on that
+//! note (`ивес-на́`, or `и_вес-на́` with a tie), not a second nucleus.
 
 use super::Segment;
 use super::syllables::{SyllableParts, WordSource, syllabify_with};
@@ -27,11 +29,13 @@ use super::syllables::{SyllableParts, WordSource, syllabify_with};
 #[rustfmt::skip]
 const ONSETS: &[&str] = &[
     "p", "b", "t", "d", "k", "g", "m", "n", "f", "v", "s", "z", "ʂ", "ʐ", "x",
-    "ts", "tʃ", "ç", "ʝ", "c", "ɟ", "ɲ", "ʎ", "r", "l", "j",
+    "ts", "tʃ", "ç", "ʝ", "c", "ɟ", "ɲ", "ʎ", "r", "l", "j", "w",
+    "pʲ", "bʲ", "tʲ", "dʲ", "kʲ", "gʲ", "mʲ", "nʲ", "fʲ", "vʲ", "sʲ", "zʲ", "xʲ", "lʲ", "rʲ", "ɕ", "tɕ",
     "pr", "br", "tr", "dr", "kr", "gr", "fr", "vr",
     "pl", "bl", "kl", "gl", "fl",
     "sp", "st", "sk", "sv", "zv", "dv", "tv",
     "pj", "bj", "mj", "fj", "vj", "rj",
+    "pʲj", "bʲj", "mʲj", "fʲj", "vʲj", "rʲj",
     "str", "spr", "skr",
 ];
 
@@ -150,6 +154,10 @@ fn pronounce(parts: &[&str], speech: bool) -> Vec<Vec<SyllableParts>> {
     for i in 0..letters.len() {
         let g = letters[i];
         if is_vowel_letter(g.ch) {
+            if let Some(gipa) = glide_off(&letters, i, stressed[i], parts.len()) {
+                units.push(glide_of(gipa, g.part));
+                continue;
+            }
             let ipa = vowel_ipa(&letters, &soft, i, stressed[i], pretonic[i], speech);
             if inserts_j(&letters, i) {
                 units.push(glide(g.part));
@@ -203,7 +211,7 @@ fn bare(parts: &[&str]) -> String {
     let mut s = String::new();
     for p in parts {
         for c in p.to_lowercase().chars() {
-            if c != '\u{0301}' && c != '\'' && c != '-' {
+            if c != '\u{0301}' && c != '\'' && c != '-' && c != '_' && c != '\u{203F}' {
                 s.push(c);
             }
         }
@@ -223,15 +231,17 @@ fn stress_marks(letters: &[Letter], parts: &[&str]) -> Vec<bool> {
         }
     } else if CLITICS.contains(&bare(parts).as_str()) {
         // every vowel stays unstressed
+    } else if let Some(v) = dict_stress(&bare(parts)) {
+        if let Some(&i) = vowels.get(v) {
+            stressed[i] = true;
+        }
     } else if vowels.len() <= 1 {
         if let Some(i) = vowels.first() {
             stressed[*i] = true;
         }
-    } else {
-        // no accent to trust: sing the spelling, full vowels
-        for i in vowels {
-            stressed[i] = true;
-        }
+    } else if let Some(&i) = vowels.last() {
+        // unknown word: one stress, on the last vowel, so the others still reduce
+        stressed[i] = true;
     }
     stressed
 }
@@ -278,7 +288,7 @@ fn emit_cons(units: &mut Vec<Unit>, letters: &[Letter], i: usize, c: Cons, soft:
     let part = letters[i].part;
     let front = next_vowel_ipa(letters, i).is_some_and(is_front);
     let vowel_j = next_vowel_index(letters, i).is_some_and(|v| inserts_j(letters, v));
-    let ipa = if soft && !c.glide { c.soft } else { c.hard };
+    let ipa = if soft { c.soft } else { c.hard };
     units.push(cons_unit(ipa, part, c));
     if c.glide && soft && !front && !vowel_j {
         units.push(glide(part));
@@ -299,8 +309,12 @@ fn cons_unit(ipa: &'static str, part: usize, c: Cons) -> Unit {
 }
 
 fn glide(part: usize) -> Unit {
+    glide_of("j", part)
+}
+
+fn glide_of(ipa: &'static str, part: usize) -> Unit {
     Unit {
-        ipa: "j",
+        ipa,
         part,
         vowel: false,
         stress: 0,
@@ -358,6 +372,16 @@ fn voiced_ipa(ipa: &'static str, voiced: bool) -> &'static str {
         ("ɟ", false) => "c",
         ("ç", true) => "ʝ",
         ("ʝ", false) => "ç",
+        ("pʲ", true) => "bʲ",
+        ("bʲ", false) => "pʲ",
+        ("fʲ", true) => "vʲ",
+        ("vʲ", false) => "fʲ",
+        ("tʲ", true) => "dʲ",
+        ("dʲ", false) => "tʲ",
+        ("sʲ", true) => "zʲ",
+        ("zʲ", false) => "sʲ",
+        ("kʲ", true) => "gʲ",
+        ("gʲ", false) => "kʲ",
         (other, _) => other,
     }
 }
@@ -405,7 +429,26 @@ fn group(units: Vec<Unit>, n: usize) -> Vec<Vec<SyllableParts>> {
 }
 
 fn is_vowel_ipa(ipa: &str) -> bool {
-    matches!(ipa, "a" | "ɛ" | "o" | "u" | "i" | "ɨ" | "ɪ" | "ɐ" | "ə")
+    matches!(ipa, "a" | "ɛ" | "o" | "u" | "ʊ" | "i" | "ɨ" | "ɪ" | "ɐ" | "ə")
+}
+
+/// In a hyphenated word, an unstressed `и` or `у` that opens a piece and is followed by another
+/// vowel of that same piece is the glide of that note (`ивес-на́` → `j` + `вес`).
+fn glide_off(letters: &[Letter], i: usize, stressed: bool, parts: usize) -> Option<&'static str> {
+    if parts < 2 || stressed {
+        return None;
+    }
+    let ch = letters[i].ch;
+    if ch != 'и' && ch != 'у' {
+        return None;
+    }
+    let part = letters[i].part;
+    let earlier = (0..i).any(|k| letters[k].part == part && is_vowel_letter(letters[k].ch));
+    let later = ((i + 1)..letters.len()).any(|k| letters[k].part == part && is_vowel_letter(letters[k].ch));
+    if earlier || !later {
+        return None;
+    }
+    Some(if ch == 'и' { "j" } else { "w" })
 }
 
 fn next_vowel_index(letters: &[Letter], i: usize) -> Option<usize> {
@@ -468,7 +511,7 @@ fn vowel_ipa(
         };
     }
     match ch {
-        'у' | 'ю' => "u",
+        'у' | 'ю' => "ʊ",
         'ы' | 'э' => "ɨ",
         'и' => "i",
         'а' if soft_a => "ɪ",
@@ -556,9 +599,9 @@ fn consonant(c: char) -> Option<Cons> {
         spread: false,
         sonorant: true,
     };
-    let glide = |hard, voiced, assimilate, spread| Cons {
+    let glide = |hard, soft, voiced, assimilate, spread| Cons {
         hard,
-        soft: hard,
+        soft,
         glide: true,
         voiced,
         assimilate,
@@ -566,23 +609,23 @@ fn consonant(c: char) -> Option<Cons> {
         sonorant: !assimilate && !spread,
     };
     Some(match c {
-        'п' => glide("p", false, true, true),
-        'б' => glide("b", true, true, true),
-        'ф' => glide("f", false, true, true),
-        'в' => glide("v", true, true, false),
-        'м' => glide("m", true, false, false),
-        'р' => glide("r", true, false, false),
-        'т' => ob("t", "c", false),
-        'д' => ob("d", "ɟ", true),
-        'с' => ob("s", "ç", false),
-        'з' => ob("z", "ʝ", true),
-        'н' => son("n", "ɲ"),
-        'л' => son("l", "ʎ"),
-        'к' => ob("k", "c", false),
-        'г' => ob("g", "ɟ", true),
+        'п' => glide("p", "pʲ", false, true, true),
+        'б' => glide("b", "bʲ", true, true, true),
+        'ф' => glide("f", "fʲ", false, true, true),
+        'в' => glide("v", "vʲ", true, true, false),
+        'м' => glide("m", "mʲ", true, false, false),
+        'р' => glide("r", "rʲ", true, false, false),
+        'т' => ob("t", "tʲ", false),
+        'д' => ob("d", "dʲ", true),
+        'с' => ob("s", "sʲ", false),
+        'з' => ob("z", "zʲ", true),
+        'н' => son("n", "nʲ"),
+        'л' => son("l", "lʲ"),
+        'к' => ob("k", "kʲ", false),
+        'г' => ob("g", "gʲ", true),
         'х' => Cons {
             hard: "x",
-            soft: "ç",
+            soft: "xʲ",
             glide: false,
             voiced: false,
             assimilate: false,
@@ -617,8 +660,8 @@ fn consonant(c: char) -> Option<Cons> {
             sonorant: false,
         },
         'ч' => Cons {
-            hard: "tʃ",
-            soft: "tʃ",
+            hard: "tɕ",
+            soft: "tɕ",
             glide: false,
             voiced: false,
             assimilate: false,
@@ -626,8 +669,8 @@ fn consonant(c: char) -> Option<Cons> {
             sonorant: false,
         },
         'щ' => Cons {
-            hard: "ç",
-            soft: "ç",
+            hard: "ɕ",
+            soft: "ɕ",
             glide: false,
             voiced: false,
             assimilate: false,
@@ -637,4 +680,78 @@ fn consonant(c: char) -> Option<Cons> {
         'й' => son("j", "j"),
         _ => return None,
     })
+}
+
+/// Authored stem-stresses for common words whose stress is not the last vowel. Not a copied
+/// dictionary: homographs (`замок`, `мука`) are left out, and anything missing takes the last
+/// vowel in [`stress_marks`]. The index is which vowel, counting from the start.
+#[rustfmt::skip]
+const STRESS: &[(&str, u8)] = &[
+    ("белый", 0),
+    ("береза", 1),
+    ("видеть", 0),
+    ("время", 0),
+    ("город", 0),
+    ("девочка", 0),
+    ("девушка", 0),
+    ("делать", 0),
+    ("деньги", 0),
+    ("дерево", 0),
+    ("дорога", 1),
+    ("думать", 0),
+    ("завтра", 0),
+    ("здравствуйте", 0),
+    ("комната", 0),
+    ("красивый", 1),
+    ("красный", 0),
+    ("кудрявая", 1),
+    ("люди", 0),
+    ("маленький", 0),
+    ("мальчик", 0),
+    ("мама", 0),
+    ("море", 0),
+    ("музыка", 0),
+    ("небо", 0),
+    ("новый", 0),
+    ("папа", 0),
+    ("песня", 0),
+    ("пожалуйста", 1),
+    ("поле", 0),
+    ("работа", 1),
+    ("родина", 0),
+    ("русский", 0),
+    ("свидания", 1),
+    ("свобода", 1),
+    ("сегодня", 1),
+    ("сердце", 0),
+    ("синий", 0),
+    ("слово", 0),
+    ("слышать", 0),
+    ("собака", 1),
+    ("солнце", 0),
+    ("спасибо", 1),
+    ("старый", 0),
+    ("товарищ", 1),
+    ("улица", 0),
+    ("улыбка", 1),
+    ("утро", 0),
+    ("хороший", 1),
+    ("черный", 0),
+    ("чёрный", 0),
+    ("школа", 0),
+    ("яблоко", 0),
+];
+
+fn dict_stress(word: &str) -> Option<usize> {
+    STRESS.binary_search_by_key(&word, |e| e.0).ok().map(|i| STRESS[i].1 as usize)
+}
+
+#[cfg(test)]
+mod lexicon_order {
+    #[test]
+    fn the_stress_list_is_sorted_for_the_binary_search() {
+        for pair in super::STRESS.windows(2) {
+            assert!(pair[0].0 < pair[1].0, "{} >= {}", pair[0].0, pair[1].0);
+        }
+    }
 }

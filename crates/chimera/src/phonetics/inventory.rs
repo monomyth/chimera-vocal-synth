@@ -220,7 +220,46 @@ fn base() -> Vec<PhonemeDef> {
         c("r", "alveolar trill", M::Trill, Voiced, "alveolar", t(&[(TtX, 6.25), (TtY, 9.45)]), &TIP, 0.11),
         c("ʀ", "uvular trill", M::Trill, Voiced, "uvular", t(&[(TbX, 1.55), (TbY, 7.85)]), &BODY, 0.11),
         c("ʙ", "bilabial trill", M::Trill, Voiced, "bilabial", t(&[(LipAp, 0.02)]), &LIPS, 0.12),
+        // Russian secondary palatalization: the primary constriction stays, and the tongue body
+        // holds a palatal posture for the whole consonant (dominant, so the vowel cannot wash it
+        // out). English never emits these, so its plans are unchanged. ɕ and tɕ are the
+        // alveolo-palatal fricative and affricate (щ, ч), not ʃ / tʃ. They are not area-calibrated:
+        // the fitter pins the new alveolars to a sealed area of 0, and leaving them out keeps the
+        // committed consonant table byte-identical.
+        c("pʲ", "palatalized voiceless bilabial stop", M::Stop, Voiceless, "bilabial", pal(BILABIAL), &LIP_PAL, 0.085),
+        c("bʲ", "palatalized voiced bilabial stop", M::Stop, Voiced, "bilabial", pal(BILABIAL), &LIP_PAL, 0.07),
+        c("mʲ", "palatalized bilabial nasal", M::Nasal, Voiced, "bilabial", pal(BILABIAL), &LIP_PAL, 0.075).nasal(),
+        c("fʲ", "palatalized voiceless labiodental fricative", M::Fricative, Voiceless, "labiodental", pal(F_TGT), &LABIO_PAL, 0.11),
+        c("vʲ", "palatalized voiced labiodental fricative", M::Fricative, Voiced, "labiodental", pal(V_TGT), &LABIO_PAL, 0.08),
+        c("tʲ", "palatalized voiceless alveolar stop", M::Stop, Voiceless, "alveolar", pal(ALV_STOP), &TIP_PAL, 0.075),
+        c("dʲ", "palatalized voiced alveolar stop", M::Stop, Voiced, "alveolar", pal(ALV_STOP), &TIP_PAL, 0.06),
+        c("nʲ", "palatalized alveolar nasal", M::Nasal, Voiced, "alveolar", pal(ALV_STOP), &TIP_PAL, 0.07).nasal(),
+        c("sʲ", "palatalized voiceless alveolar fricative", M::Fricative, Voiceless, "alveolar", t(&[(TtX, 6.05), (TtY, 9.1), (Jaw, 0.28), (TbX, 3.7), (TbY, 8.05)]), &FRIC_PAL, 0.12),
+        c("zʲ", "palatalized voiced alveolar fricative", M::Fricative, Voiced, "alveolar", t(&[(TtX, 6.05), (TtY, 9.1), (Jaw, 0.28), (TbX, 3.7), (TbY, 8.05)]), &FRIC_PAL, 0.09),
+        c("lʲ", "palatalized alveolar lateral", M::Lateral, Voiced, "alveolar", t(ALV_LAT_PAL), &LAT_PAL, 0.07),
+        c("rʲ", "palatalized alveolar trill", M::Trill, Voiced, "alveolar", pal(R_TGT), &TIP_PAL, 0.11),
+        c("kʲ", "palatalized voiceless velar stop", M::Stop, Voiceless, "velar", t(&[(TbX, 3.15), (TbY, 8.3), (Jaw, 0.55)]), &[TbX, TbY], 0.08),
+        c("gʲ", "palatalized voiced velar stop", M::Stop, Voiced, "velar", t(&[(TbX, 3.15), (TbY, 8.3), (Jaw, 0.55)]), &[TbX, TbY], 0.07),
+        c("xʲ", "palatalized voiceless velar fricative", M::Fricative, Voiceless, "velar", t(&[(TbX, 3.15), (TbY, 7.95)]), &[TbX, TbY], 0.12),
+        c("ɕ", "voiceless alveolo-palatal fricative", M::Fricative, Voiceless, "alveolo-palatal", t(&[(TtX, 5.95), (TtY, 9.28), (TbX, 3.6), (TbY, 8.25), (Jaw, 0.28)]), &FRIC_PAL, 0.18),
+        c("tɕ", "voiceless alveolo-palatal affricate", M::Affricate, Voiceless, "alveolo-palatal", t(&[(TtX, 5.9), (TtY, 9.5), (TbX, 3.6), (TbY, 8.2), (Jaw, 0.28)]), &FRIC_PAL, 0.14).rel("ɕ"),
     ]
+}
+
+/// Tongue-body posture of a palatalized consonant (an approximant, not a second closure).
+const PAL: Tg = &[(TbX, 3.7), (TbY, 8.05)];
+const F_TGT: Tg = &[(Labiodental, 1.0), (LipAp, 0.05)];
+const V_TGT: Tg = &[(Labiodental, 1.0), (LipAp, 0.06)];
+const R_TGT: Tg = &[(TtX, 6.25), (TtY, 9.45)];
+const ALV_LAT_PAL: Tg = &[(TtX, 6.25), (TtY, 9.68), (Lateral, 1.0), (TbX, 3.7), (TbY, 8.05)];
+const LIP_PAL: [ArticKey; 3] = [LipAp, TbX, TbY];
+const LABIO_PAL: [ArticKey; 4] = [Labiodental, LipAp, TbX, TbY];
+const TIP_PAL: [ArticKey; 4] = [TtX, TtY, TbX, TbY];
+const FRIC_PAL: [ArticKey; 5] = [TtX, TtY, Jaw, TbX, TbY];
+const LAT_PAL: [ArticKey; 5] = [TtX, TtY, Lateral, TbX, TbY];
+
+fn pal(base: Tg) -> ArticPatch {
+    tg(base, PAL)
 }
 
 type CalTable = BTreeMap<String, BTreeMap<String, ArticPatch>>;

@@ -1,5 +1,6 @@
 //! Russian lyric front end: Cyrillic to the inventory, through the same syllable path as English.
-use chimera::anatomy::human::BODY_MALE;
+use chimera::anatomy::human::{ArticKey, BODY_MALE, BodyMix};
+use chimera::phonetics::inventory::phoneme;
 use chimera::math::midi_to_hz;
 use chimera::phonetics::Syllable;
 use chimera::phonetics::english::EnglishG2P;
@@ -34,13 +35,21 @@ fn inventory_gaps_map_onto_phonemes_the_tract_has() {
     // ы is the calibrated central vowel, not и or у
     assert_eq!(ipa("мы", false), "m ɨ");
     assert_eq!(ipa("ты", false), "t ɨ");
-    assert_eq!(ipa("ти", false), "c i");
-    // х is the velar fricative; a final voiced stop devoices
-    assert_eq!(ipa("хлеб", false), "x ʎ ɛ p");
-    // ш is retroflex; щ has no ɕ, so it is the palatal fricative, and ч stays an affricate
+    assert_eq!(ipa("ти", false), "tʲ i");
+    // х is the velar fricative; ль is a palatalized lateral, and a final voiced stop devoices
+    assert_eq!(ipa("хлеб", false), "x lʲ ɛ p");
+    // ш is retroflex; щ is the long alveolo-palatal, and ч is an affricate into that fricative
     assert_eq!(ipa("шум", false), "ʂ u m");
-    assert_eq!(ipa("щи", false), "ç i");
-    assert_eq!(ipa("час", false), "tʃ a s");
+    assert_eq!(ipa("щи", false), "ɕ i");
+    assert_eq!(ipa("час", false), "tɕ a s");
+    let soft = phoneme("pʲ", BodyMix::MALE).expect("pʲ");
+    assert!(soft.dominant.contains(&ArticKey::TbY), "the palatalization is its own gesture");
+    assert!(soft.targets.get(ArticKey::LipAp).is_some());
+    assert!(soft.targets.get(ArticKey::TbY).unwrap() > 7.5);
+    let shch = phoneme("ɕ", BodyMix::MALE).unwrap();
+    let sh = phoneme("ʂ", BodyMix::MALE).unwrap();
+    assert!(shch.dur > sh.dur, "щ is the long fricative");
+    assert_eq!(phoneme("tɕ", BodyMix::MALE).unwrap().release, Some("ɕ"));
 }
 
 #[test]
@@ -50,8 +59,16 @@ fn stress_marks_choose_reduction_and_clitics_reduce_without_one() {
     // singing keeps an open central vowel; speech uses schwa off the pretonic syllable
     assert_eq!(ipa("молоко́", false), "m ɐ l ɐ k o");
     assert_eq!(ipa("молоко́", true), "m ə l ɐ k o");
-    // no mark on a longer word: full vowels, so the missing accent is audible
-    assert_eq!(ipa("молоко", false), "m o l o k o");
+    // no mark: the last vowel, unless the word is in the authored list (мама is not мама́)
+    assert_eq!(ipa("молоко", false), "m ɐ l ɐ k o");
+    assert_eq!(ipa("мама", false), "m a m ɐ");
+    assert_eq!(ipa("поле", false), ipa("по́ле", false));
+    // a mark wins over the list
+    assert_eq!(ipa("мама́", false), "m ɐ m a");
+    // an unknown word still reduces everything but one vowel
+    assert_eq!(ipa("бароба", false), "b ɐ r ɐ b a");
+    // unstressed у is the lax vowel
+    assert_eq!(ipa("улыбка", false), "ʊ l ɨ p k ɐ");
     // ё is stressed; a bare monosyllable is stressed; во is a clitic unless marked
     assert_eq!(ipa("ёлка", false), "j o l k ɐ");
     assert_eq!(ipa("во", false), "v ɐ");
@@ -62,13 +79,16 @@ fn stress_marks_choose_reduction_and_clitics_reduce_without_one() {
 
 #[test]
 fn palatalization_voicing_and_the_soft_sign() {
-    assert_eq!(ipa("день", false), "ɟ ɛ ɲ");
+    assert_eq!(ipa("день", false), "dʲ ɛ nʲ");
     assert_eq!(ipa("дуб", false), "d u p");
     assert_eq!(ipa("вокза́л", false), "v ɐ g z a l");
-    assert_eq!(ipa("всё", false), "f ç o");
-    assert_eq!(ipa("семья́", false), "ç ɪ m j a");
-    // softness spreads through a coronal cluster, then the cluster voices
-    assert_eq!(ipa("сде́лать", false), "ʝ ɟ ɛ l ɐ c");
+    assert_eq!(ipa("всё", false), "f sʲ o");
+    assert_eq!(ipa("семья́", false), "sʲ ɪ mʲ j a");
+    // softness spreads through a coronal cluster, then the cluster voices, and the gesture stays
+    assert_eq!(ipa("сде́лать", false), "zʲ dʲ ɛ l ɐ tʲ");
+    // before и the softness is on the consonant, with no extra j; before я the j remains
+    assert_eq!(ipa("пи", false), "pʲ i");
+    assert_eq!(ipa("пя́ть", false), "pʲ j a tʲ");
     // и after a husher is ы
     assert_eq!(ipa("жир", false), "ʐ ɨ r");
 }
@@ -82,14 +102,14 @@ fn hyphens_are_sung_breaks_and_melisma_still_holds_the_vowel() {
     );
     assert_eq!(
         syl.iter().map(phones).collect::<Vec<_>>(),
-        ["b ɪ", "r j o", "z ɐ"]
+        ["bʲ ɪ", "rʲ j o", "z ɐ"]
     );
     assert!(syl[2].word_end && !syl[0].word_end);
     // the hyphen is not a word boundary: з stays voiced, and за is reduced from the ё
     let whole = sung("берёза");
     assert_eq!(
         whole.iter().map(phones).collect::<Vec<_>>(),
-        ["b ɪ", "r j o", "z ɐ"]
+        ["bʲ ɪ", "rʲ j o", "z ɐ"]
     );
     assert_eq!(
         whole.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(),
@@ -107,6 +127,31 @@ fn hyphens_are_sung_breaks_and_melisma_still_holds_the_vowel() {
     assert_eq!(phones(&held[3]), "l a");
     // a lone за is the preposition, and reduces
     assert_eq!(ipa("за", false), "z ɐ");
+    // an unstressed и that opens a hyphen piece with a later vowel is the glide of that note
+    let spring = sung("ивес-на́");
+    assert_eq!(spring.len(), 2);
+    assert_eq!(
+        spring.iter().map(phones).collect::<Vec<_>>(),
+        ["j vʲ ɪ s", "n a"]
+    );
+    let tied = sung("и_вес-на́");
+    assert_eq!(tied.len(), 2);
+    assert_eq!(phones(&tied[0]), "j vʲ ɪ s");
+    // the same vowel hyphenated on its own note stays a nucleus, and so does a reduced у
+    assert_eq!(sung("и-вес-на́").len(), 3);
+    let smile = sung("у-лы́б-ку");
+    assert_eq!(smile.len(), 3);
+    assert_eq!(
+        smile.iter().map(phones).collect::<Vec<_>>(),
+        ["ʊ", "l ɨ p", "k ʊ"]
+    );
+    // the same rule turns a leading unstressed у into w when it shares the note
+    let lessons = sung("уро-ки");
+    assert_eq!(lessons.len(), 2);
+    assert_eq!(
+        lessons.iter().map(phones).collect::<Vec<_>>(),
+        ["w r ɐ", "kʲ i"]
+    );
 }
 
 #[test]
@@ -182,7 +227,7 @@ fn the_folk_line_has_one_syllable_per_note() {
     assert_eq!(
         nuclei,
         [
-            "ɐ", "o", "ɪ", "ɪ", "o", "ɐ", "ɐ", "a", "ɐ", "ɐ", "o", "ɪ", "u", "a", "ɐ", "ɐ", "ɐ",
+            "ɐ", "o", "ɪ", "ɪ", "o", "ɐ", "ɐ", "a", "ɐ", "ɐ", "o", "ɪ", "ʊ", "a", "ɐ", "ɐ", "ɐ",
             "a", "ɐ"
         ]
     );

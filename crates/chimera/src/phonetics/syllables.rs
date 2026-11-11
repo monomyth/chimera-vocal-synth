@@ -189,6 +189,9 @@ fn is_word_start(c: char) -> bool {
 /// it used to.
 fn continues_word(c: char, prev: char) -> bool {
     is_word_start(c) || c == '-' || (c == '\u{0301}' && is_cyrillic(prev))
+        // a tie keeps an unstressed vowel in the next Russian syllable (`и_вес-на`); after a
+        // Latin letter it still ends the word, so English lyrics tokenize as before
+        || ((c == '_' || c == '\u{203F}') && is_cyrillic(prev))
 }
 
 /// `text.match(/[A-Za-z'][A-Za-z'\-]*|(?<=\s|^)[~-](?=\s|$)|[.,;:!?\n]/g)`
