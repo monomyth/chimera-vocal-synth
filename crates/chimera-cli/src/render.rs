@@ -12,7 +12,7 @@ use chimera::creatures::voice::CreatureVoice;
 use chimera::creatures::{CREATURES, creature_by_id};
 use chimera::math::{js_max, js_min, js_round, log10};
 use chimera::phonetics::beatbox::{BEAT_PRESETS, BEAT_SOUNDS, BeatStep, beat_ready, parse_beat};
-use chimera::phonetics::english::EnglishG2P;
+use chimera::phonetics::english::{EnglishG2P, Phrase};
 use chimera::phonetics::ipa::tokenize_ipa;
 use chimera::phonetics::planner::{
     PhraseInput, PlanOptions, plan_phrases, plan_utterance, vowel_table,
@@ -24,7 +24,7 @@ use chimera::phonetics::sing::{
 use chimera::phonetics::russian::RussianG2P;
 use chimera::phonetics::songs::DEMO_SONGS;
 use chimera::phonetics::syllables::{LyricLang, lyric_language, lyrics_to_syllables};
-use chimera::phonetics::{Intonation, Plan, Syllable};
+use chimera::phonetics::{Intonation, Plan, Segment, Syllable};
 use chimera::voice::human_voice::{HumanVoice, SCOPE_POINTS, SourcePatch, VoiceTelemetry};
 use std::io::Read;
 use std::time::Instant;
@@ -144,9 +144,12 @@ pub fn text_f0(body_name: &str) -> f64 {
 /// Say `text` the way `render text` does: CMUdict G2P, the phrase planner from t0 = 50 ms, the
 /// body's speaking f0, 300 ms of tail. `chimera compare tsp` measures exactly these renders.
 pub fn say(g: &EnglishG2P, text: &str, body_name: &str) -> Result<Spoken, String> {
+    render_spoken(&g.to_phrases(text), body_name)
+}
+
+fn render_spoken(phrases: &[Phrase], body_name: &str) -> Result<Spoken, String> {
     let b = body(body_name)?;
     let f0 = text_f0(body_name);
-    let phrases = g.to_phrases(text);
     let shown: Vec<String> = phrases
         .iter()
         .map(|p| {
@@ -188,14 +191,75 @@ pub fn say(g: &EnglishG2P, text: &str, body_name: &str) -> Result<Spoken, String
     Ok(Spoken { out, plan, shown: shown.join(" | ") })
 }
 
-/// English text through G2P and the phrase planner. `render text <out> ["Text."] [body]`
+fn say_russian(text: &str, body_name: &str) -> Result<Spoken, String> {
+    render_spoken(&russian_phrases(text), body_name)
+}
+
+fn flush_russian(delim: char, words: &mut Vec<String>, phrases: &mut Vec<Phrase>) {
+    if words.is_empty() {
+        return;
+    }
+    let g = RussianG2P;
+    let mut segs: Vec<Segment> = Vec::new();
+    let mut said = Vec::new();
+    for w in words.iter() {
+        let mut ws = g.word(w, true);
+        let Some(last) = ws.last_mut() else { continue };
+        last.word_end = Some(true);
+        segs.append(&mut ws);
+        said.push(w.clone());
+    }
+    words.clear();
+    if segs.is_empty() {
+        return;
+    }
+    let pause = if matches!(delim, '.' | '!' | '?') { 0.35 } else if delim != '\0' { 0.18 } else { 0.3 };
+    phrases.push(Phrase {
+        segments: segs,
+        intonation: if delim == '?' { Intonation::Question } else { Intonation::Statement },
+        pause,
+        words: said,
+    });
+}
+
+/// Phrases for spoken Russian: the same punctuation pauses as English, speech reduction on.
+fn russian_phrases(text: &str) -> Vec<Phrase> {
+    let mut phrases = Vec::new();
+    let mut words = Vec::new();
+    let mut chunk = String::new();
+    for c in text.chars() {
+        if matches!(c, '.' | '!' | '?' | ';' | ':' | ',') {
+            if !chunk.is_empty() {
+                words.push(std::mem::take(&mut chunk).to_lowercase());
+            }
+            flush_russian(c, &mut words, &mut phrases);
+        } else if c.is_whitespace() {
+            if !chunk.is_empty() {
+                words.push(std::mem::take(&mut chunk).to_lowercase());
+            }
+        } else {
+            chunk.push(c);
+        }
+    }
+    if !chunk.is_empty() {
+        words.push(chunk.to_lowercase());
+    }
+    flush_russian('\0', &mut words, &mut phrases);
+    phrases
+}
+
+/// Text through the phrase planner. Cyrillic selects the Russian reading (speech reduction);
+/// anything else stays on the English dictionary, so an English sentence is unchanged.
+/// `render text <out> ["Text."] [body]`
 pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     let name = arg(a, 0, "out/text");
     let text = arg(a, 1, "Hello world.");
     let body_name = arg(a, 2, "male");
-    let g = g2p()?;
     let t = Instant::now();
-    let s = say(&g, text, body_name)?;
+    let s = match lyric_language(text, None)? {
+        LyricLang::Ru => say_russian(text, body_name)?,
+        LyricLang::En => say(&g2p()?, text, body_name)?,
+    };
     let ms = ms_since(t);
     println!("{}", s.shown);
     let file = wav_name(name);

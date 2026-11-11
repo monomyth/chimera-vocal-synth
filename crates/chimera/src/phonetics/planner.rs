@@ -65,8 +65,13 @@ pub fn diphthong_parts(ipa: &str) -> Option<(&'static str, &'static str)> {
 }
 
 pub fn is_vowel(ipa: &str, body: BodyMix) -> bool {
-    let t = vowel_table();
-    body.weights().iter().any(|(b, w)| *w > 0.0 && t.get(b.as_str()).is_some_and(|t| t.contains_key(ipa))) || expand(ipa).is_some()
+    // ᵻ and ä are the Russian-only vowels in `russian_vowel_artic`. English never emits them.
+    matches!(ipa, "ᵻ" | "ä")
+        || expand(ipa).is_some()
+        || {
+            let t = vowel_table();
+            body.weights().iter().any(|(b, w)| *w > 0.0 && t.get(b.as_str()).is_some_and(|t| t.contains_key(ipa)))
+        }
 }
 
 /// The calibrated articulation of a vowel for a body: between presets, the presets' calibrated
@@ -86,6 +91,9 @@ pub fn vowel_artic(ipa: &str, body: BodyMix) -> Option<ArticPatch> {
 }
 
 fn preset_vowel_artic(ipa: &str, body: BodyName) -> Option<ArticPatch> {
+    if let Some(p) = russian_vowel_artic(ipa, body) {
+        return Some(p);
+    }
     let t = vowel_table();
     let v = t.get(body.as_str()).and_then(|b| b.get(ipa)).or_else(|| t.get("male").and_then(|m| m.get(ipa)))?;
     let mut out = ArticPatch::default();
@@ -105,6 +113,42 @@ fn preset_vowel_artic(ipa: &str, body: BodyName) -> Option<ArticPatch> {
         }
     }
     Some(out)
+}
+
+/// Russian ы and stressed а, as symbols English never emits (the shared `ɨ` and `a` stay put,
+/// so the planning goldens do not move).
+///
+/// Calibrated `ɨ` has a weak F2 near 1600 Hz and a louder F3 near 2270 Hz, which is where `i`
+/// puts its F2, so at a male pitch the two vowels share a band. ы takes `ʊ`'s tongue and `ɨ`'s
+/// unrounded lips: F2 near 1270 Hz, and that peak louder than the one near 2300 Hz.
+///
+/// Stressed `a` and reduced `ɐ` are about 60 Hz apart, under one male harmonic. Stressed а is
+/// `a` moved part of the way toward `æ`, still open, with F2 high enough to clear `ɐ`.
+fn russian_vowel_artic(ipa: &str, body: BodyName) -> Option<ArticPatch> {
+    match ipa {
+        "ᵻ" => {
+            let mut tongue = preset_vowel_artic("ʊ", body)?;
+            let lips = preset_vowel_artic("ɨ", body)?;
+            for k in [ArticKey::LipAp, ArticKey::LipWidth, ArticKey::LipProt] {
+                if let Some(v) = lips.get(k) {
+                    tongue.set(k, v);
+                }
+            }
+            Some(tongue)
+        }
+        "ä" => {
+            let mut open = preset_vowel_artic("a", body)?;
+            let front = preset_vowel_artic("æ", body)?;
+            let keys: Vec<_> = open.iter().map(|(k, v)| (k, v)).collect();
+            for (k, v) in keys {
+                if let Some(f) = front.get(k) {
+                    open.set(k, v + (f - v) * 0.65);
+                }
+            }
+            Some(open)
+        }
+        _ => None,
+    }
 }
 
 /// Parse the vowel and consonant tables now (so nothing initialises lazily on the audio thread).

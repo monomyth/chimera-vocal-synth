@@ -11,7 +11,7 @@ const { lyricsToSyllables } = await import("../src/wasm/engine.ts");
 describe("Russian lyrics", () => {
   test("Cyrillic is sung, English is not retokenized into it", () => {
     const ru = lyricsToSyllables("ма́-ма");
-    expect(ru.map((s) => s.nucleus.ipa)).toEqual(["a", "ɐ"]);
+    expect(ru.map((s) => s.nucleus.ipa)).toEqual(["ä", "ɐ"]);
     expect(ru.map((s) => s.text)).toEqual(["ма́", "ма"]);
     const en = lyricsToSyllables("la la");
     expect(en).toHaveLength(2);

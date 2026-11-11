@@ -24,8 +24,9 @@ for tests and the `chimera` CLI.
 
 - **Play**: drag the tongue, lips and jaw in a live cutaway of the head; vowel pad, encoders,
   computer keyboard and Web MIDI.
-- **Speak**: English text (CMUdict with a letter-to-sound fallback) or IPA, turned into
-  gestures and prosody, with the gestural score and a consonant chart on screen.
+- **Speak**: English text (CMUdict with a letter-to-sound fallback), Cyrillic (the Russian
+  reading), or IPA, turned into gestures and prosody, with the gestural score and a consonant
+  chart on screen.
 - **Sing**: piano roll with lyrics per note; consonants land before the beat. Russian (Cyrillic,
   syllable hyphens, stress marks) uses the same lyric path as English.
 - **Beatbox**: pads and a step sequencer, every drum an articulatory gesture.

@@ -26,6 +26,14 @@ fn tmp(name: &str) -> String {
 }
 
 #[test]
+fn render_text_speaks_russian_and_leaves_english_on_the_dictionary() {
+    let ru = chimera(&["render", "text", &tmp("ru-yolka"), "ёлка.", "male"]);
+    assert!(ru.starts_with("jˈolkə\n"), "{ru}");
+    let en = chimera(&["render", "text", &tmp("en-hello"), "Hello world.", "male"]);
+    assert!(en.starts_with("həlˈoʊwˈɝɫd\n"), "{en}");
+}
+
+#[test]
 fn render_speech_writes_a_sounding_wav_of_the_planned_length() {
     let stem = tmp("hello");
     let stdout = chimera(&["render", "speech", &stem, "ˈhɛloʊ"]);

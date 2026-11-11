@@ -3,14 +3,17 @@
 //! Moscow reading, sung rather than spoken: stress is an acute on the vowel (`мо́ре`), an
 //! apostrophe after it (`мо'ре`), or `ё` (always stressed). A monosyllable with no mark is
 //! stressed, except a small list of clitics (`во`, `на`, `не`, …) which stay reduced. A longer
-//! word with no mark takes [`dict_stress`] when the word is in that authored list, and otherwise
-//! the last vowel, so the other vowels still reduce. Unstressed `а`/`о` become `ɐ` when singing
-//! (a held note stays a vowel) and, in speech (`reduce`), `ɐ` in the pretonic syllable and `ə`
-//! elsewhere. Unstressed `е`/`я` after a consonant become `ɪ`. Unstressed `у`/`ю` become `ʊ`.
+//! word with no mark takes [`dict_stress`] when the word is in that authored list, then the
+//! vowel before an `-ыва-`/`-ива-` suffix, and otherwise the last vowel, so the other vowels
+//! still reduce. Unstressed `а`/`о` become `ɐ` when singing (a held note stays a vowel) and,
+//! in speech (`reduce`), `ɐ` in the pretonic syllable and `ə` elsewhere. Unstressed `е`/`я`
+//! after a consonant become `ɪ`. Unstressed `у`/`ю` become `ʊ`. Stressed `а`/`я` are `ä` and
+//! `ы` is `ᵻ`: those two symbols are not the shared `a` and `ɨ`, whose formants sit on top of
+//! `ɐ` and `i` at a male pitch.
 //!
 //! A soft consonant is the same constriction plus a palatal tongue-body gesture (`п` → `pʲ`,
 //! `т` → `tʲ`, `л` → `lʲ`, `х` before a soft vowel → `xʲ`). Soft labials and `р` still add `j`
-//! before a back vowel. `ы` is `ɨ`, hard `х` is `x`, `ш`/`ж` are retroflex `ʂ`/`ʐ`. `щ` is the
+//! before a back vowel. `ы` is `ᵻ` (not the shared `ɨ`), hard `х` is `x`, `ш`/`ж` are retroflex `ʂ`/`ʐ`. `щ` is the
 //! long alveolo-palatal `ɕ` and `ч` is the affricate `tɕ`, so they differ from `ш`/`ч` of
 //! English (`ʂ` / `tʃ`) in place and from each other in manner.
 //!
@@ -235,6 +238,12 @@ fn stress_marks(letters: &[Letter], parts: &[&str]) -> Vec<bool> {
         if let Some(&i) = vowels.get(v) {
             stressed[i] = true;
         }
+    } else if let Some(v) = yva_stress(&letters) {
+        // productive -ыва-/-ива- puts stress on the vowel before the suffix. The list above
+        // holds the lookalikes that stress the suffix instead (забыва́ют, открыва́ть).
+        if let Some(&i) = vowels.get(v) {
+            stressed[i] = true;
+        }
     } else if vowels.len() <= 1 {
         if let Some(i) = vowels.first() {
             stressed[*i] = true;
@@ -429,7 +438,7 @@ fn group(units: Vec<Unit>, n: usize) -> Vec<Vec<SyllableParts>> {
 }
 
 fn is_vowel_ipa(ipa: &str) -> bool {
-    matches!(ipa, "a" | "ɛ" | "o" | "u" | "ʊ" | "i" | "ɨ" | "ɪ" | "ɐ" | "ə")
+    matches!(ipa, "a" | "ä" | "ɛ" | "o" | "u" | "ʊ" | "i" | "ɨ" | "ᵻ" | "ɪ" | "ɐ" | "ə")
 }
 
 /// In a hyphenated word, an unstressed `и` or `у` that opens a piece and is followed by another
@@ -498,21 +507,21 @@ fn vowel_ipa(
     // `а` after a soft consonant reduces like `я` (`часы` → ɪ), not like hard `а`.
     let soft_a = ch == 'а' && consonant_before(letters, i).is_some_and(|k| soft[k]);
     if husher && (matches!(ch, 'и' | 'ы') || (!stressed && matches!(ch, 'е' | 'э'))) {
-        return "ɨ";
+        return "ᵻ";
     }
     if stressed {
         return match ch {
-            'а' | 'я' => "a",
+            'а' | 'я' => "ä",
             'э' | 'е' => "ɛ",
             'о' | 'ё' => "o",
             'у' | 'ю' => "u",
-            'ы' => "ɨ",
+            'ы' => "ᵻ",
             _ => "i",
         };
     }
     match ch {
         'у' | 'ю' => "ʊ",
-        'ы' | 'э' => "ɨ",
+        'ы' | 'э' => "ᵻ",
         'и' => "i",
         'а' if soft_a => "ɪ",
         'а' | 'о' => open_reduced(speech, pretonic),
@@ -682,14 +691,20 @@ fn consonant(c: char) -> Option<Cons> {
     })
 }
 
-/// Authored stem-stresses for common words whose stress is not the last vowel. Not a copied
-/// dictionary: homographs (`замок`, `мука`) are left out, and anything missing takes the last
-/// vowel in [`stress_marks`]. The index is which vowel, counting from the start.
+/// Authored stem-stresses for common words whose stress is not the last vowel, and for the
+/// `-ыва-` verbs that stress the suffix (the rule would put it before `-ыва-`). Not a copied
+/// dictionary: homographs (`замок`, `мука`) are left out. The index is which vowel, from the start.
 #[rustfmt::skip]
 const STRESS: &[(&str, u8)] = &[
     ("белый", 0),
     ("береза", 1),
     ("видеть", 0),
+    ("вкалывает", 0),
+    ("вкалывал", 0),
+    ("вкалывала", 0),
+    ("вкалывали", 0),
+    ("вкалывать", 0),
+    ("вкалывают", 0),
     ("время", 0),
     ("город", 0),
     ("девочка", 0),
@@ -697,9 +712,19 @@ const STRESS: &[(&str, u8)] = &[
     ("делать", 0),
     ("деньги", 0),
     ("дерево", 0),
+    ("добывать", 2),
+    ("добывают", 2),
     ("дорога", 1),
     ("думать", 0),
+    ("забывал", 2),
+    ("забывала", 2),
+    ("забывали", 2),
+    ("забывать", 2),
+    ("забываю", 2),
+    ("забывают", 2),
     ("завтра", 0),
+    ("закрывать", 2),
+    ("закрывают", 2),
     ("здравствуйте", 0),
     ("комната", 0),
     ("красивый", 1),
@@ -713,11 +738,27 @@ const STRESS: &[(&str, u8)] = &[
     ("музыка", 0),
     ("небо", 0),
     ("новый", 0),
+    ("открывал", 2),
+    ("открывать", 2),
+    ("открываю", 2),
+    ("открывают", 2),
     ("папа", 0),
     ("песня", 0),
     ("пожалуйста", 1),
+    ("покрывать", 2),
+    ("покрывают", 2),
     ("поле", 0),
     ("работа", 1),
+    ("рама", 0),
+    ("раму", 0),
+    ("робот", 0),
+    ("робота", 0),
+    ("роботам", 0),
+    ("роботами", 0),
+    ("роботов", 0),
+    ("роботом", 0),
+    ("роботу", 0),
+    ("роботы", 0),
     ("родина", 0),
     ("русский", 0),
     ("свидания", 1),
@@ -740,7 +781,19 @@ const STRESS: &[(&str, u8)] = &[
     ("чёрный", 0),
     ("школа", 0),
     ("яблоко", 0),
+    ("яма", 0),
 ];
+
+/// Vowel index of the vowel before an `-ыва-` / `-ива-` suffix, if the word has one.
+fn yva_stress(letters: &[Letter]) -> Option<usize> {
+    let vowels: Vec<usize> = (0..letters.len()).filter(|&i| is_vowel_letter(letters[i].ch)).collect();
+    let i = (0..letters.len().saturating_sub(2)).find(|&i| {
+        let c = letters[i].ch;
+        (c == 'ы' || c == 'и') && letters[i + 1].ch == 'в' && letters[i + 2].ch == 'а'
+    })?;
+    let prev = vowels.iter().rev().find(|&&v| v < i).copied()?;
+    vowels.iter().position(|&v| v == prev)
+}
 
 fn dict_stress(word: &str) -> Option<usize> {
     STRESS.binary_search_by_key(&word, |e| e.0).ok().map(|i| STRESS[i].1 as usize)
