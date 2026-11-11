@@ -29,6 +29,8 @@ fn tmp(name: &str) -> String {
 fn render_text_speaks_russian_and_leaves_english_on_the_dictionary() {
     let ru = chimera(&["render", "text", &tmp("ru-yolka"), "ёлка.", "male"]);
     assert!(ru.starts_with("jˈolkə\n"), "{ru}");
+    let uk = chimera(&["render", "text", &tmp("uk-holos"), "голос.", "male", "uk"]);
+    assert!(uk.starts_with("ɦˈɔlɔs\n"), "{uk}");
     let en = chimera(&["render", "text", &tmp("en-hello"), "Hello world.", "male"]);
     assert!(en.starts_with("həlˈoʊwˈɝɫd\n"), "{en}");
 }

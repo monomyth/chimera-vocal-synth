@@ -113,8 +113,8 @@ export class EnglishG2P {
 }
 
 /**
- * Lyrics → sung syllables. `language` is `"en"` or `"ru"`. Omitted, a line with any Cyrillic
- * letter takes the Russian front end; anything else stays on the English dictionary.
+ * Lyrics → sung syllables. `language` is `"en"`, `"ru"`, or `"uk"`. Omitted, і/ї/є/ґ select
+ * Ukrainian, any other Cyrillic selects Russian, and a Latin line stays on the English dictionary.
  */
 export function lyricsToSyllables(text: string, language?: string): Syllable[] {
   return call("lyricsToSyllables", language ? { text, language } : { text });

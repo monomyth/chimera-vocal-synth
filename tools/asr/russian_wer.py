@@ -5,7 +5,7 @@ with the multilingual `small` model, language=ru, greedy, and reports word and c
 error rates. It does not render and it does not decide a tuning loop: a singer can pass
 this and still sound wrong, and a change that only flatters the recogniser is not a win.
 
-usage: russian_wer.py <manifest.tsv> [--out report.json]
+usage: russian_wer.py <manifest.tsv> [--language ru|uk] [--out report.json]
 
 Each manifest line is `label<TAB>wav<TAB>reference`. Blank lines and lines starting with
 # are skipped. ё is folded to е for the headline rates, because Whisper writes е; the
@@ -29,7 +29,8 @@ CACHE = os.path.expanduser("~/.cache/chimera-asr/models")
 
 def fold(text):
     text = text.lower().replace("ё", "е")
-    text = re.sub(r"[^а-яa-z0-9 ]+", " ", text)
+    # є і ї ґ sit outside the а–я block. Dropping them would erase the Ukrainian vowels.
+    text = re.sub(r"[^а-яєіїґa-z0-9 ]+", " ", text)
     return " ".join(text.split())
 
 
@@ -54,9 +55,14 @@ def load16k(path):
 def main():
     args = sys.argv[1:]
     out = None
+    language = "ru"
     if "--out" in args:
         i = args.index("--out")
         out = args[i + 1]
+        del args[i : i + 2]
+    if "--language" in args:
+        i = args.index("--language")
+        language = args[i + 1]
         del args[i : i + 2]
     manifest = args[0]
     rows = []
@@ -74,7 +80,7 @@ def main():
     for label, wav, ref in rows:
         segs, _ = model.transcribe(
             load16k(wav),
-            language="ru",
+            language=language,
             beam_size=1,
             temperature=0.0,
             condition_on_previous_text=False,

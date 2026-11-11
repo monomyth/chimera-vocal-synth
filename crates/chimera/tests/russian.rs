@@ -196,6 +196,8 @@ fn language_field_selects_the_front_end_and_english_text_stays_english() {
         LyricLang::En
     );
     assert_eq!(lyric_language("hello", Some("ru")).unwrap(), LyricLang::Ru);
+    assert_eq!(lyric_language("України", None).unwrap(), LyricLang::Uk);
+    assert_eq!(lyric_language("України", Some("ru")).unwrap(), LyricLang::Ru);
     assert!(lyric_language("Во", Some("de")).is_err());
     // an explicit English reading still drops Cyrillic (no English syllable), as the old tokenizer did
     let en = sing_lyrics("hello Во", Some("en"), &EnglishG2P::new()).unwrap();

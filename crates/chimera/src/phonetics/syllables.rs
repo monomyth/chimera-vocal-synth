@@ -12,6 +12,7 @@ use crate::anatomy::human::BodyMix;
 use super::english::{EnglishG2P, js_is_space};
 use super::planner::is_vowel;
 use super::russian::RussianG2P;
+use super::ukrainian::UkrainianG2P;
 use super::{Segment, Syllable};
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +74,9 @@ pub(crate) fn syllabify_with(segs: &[Segment], onsets: &[&str]) -> Vec<SyllableP
 fn is_cyr_vowel(c: u16) -> bool {
     // а е ё и о у ы э ю я, and the capitals. Cyrillic is in the BMP, one UTF-16 unit.
     matches!(c, 0x0430 | 0x0435 | 0x0451 | 0x0438 | 0x043E | 0x0443 | 0x044B | 0x044D | 0x044E | 0x044F
-        | 0x0410 | 0x0415 | 0x0401 | 0x0418 | 0x041E | 0x0423 | 0x042B | 0x042D | 0x042E | 0x042F)
+        | 0x0410 | 0x0415 | 0x0401 | 0x0418 | 0x041E | 0x0423 | 0x042B | 0x042D | 0x042E | 0x042F
+        // Ukrainian і ї є, capitals included. Russian spelling does not use these letters.
+        | 0x0456 | 0x0457 | 0x0454 | 0x0406 | 0x0407 | 0x0404)
 }
 fn is_spell_vowel(c: u16) -> bool {
     "aeiouy".bytes().any(|v| v as u16 == c) || is_cyr_vowel(c)
@@ -274,30 +277,46 @@ fn push_spelled(syls: &mut Vec<Syllable>, part: &str, sy: Vec<SyllableParts>, hy
     }
 }
 
-/// Which lyric front end sings a line. English is the default; Russian is Cyrillic.
+/// Which lyric front end sings a line. English is the default; Cyrillic is Russian unless the
+/// line uses a Ukrainian letter or the melody asks for `uk`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LyricLang {
     En,
     Ru,
+    Uk,
 }
 
-/// `requested` is the melody's `language` field: `en` / `ru`, or absent. Absent selects Russian
-/// when the line contains any Cyrillic letter, otherwise English. An explicit `en` stays English
-/// even if the line quotes Cyrillic (those letters produce no English syllable, as before).
+/// Letters Russian orthography does not use. Their presence, with no explicit language, selects
+/// Ukrainian. A Russian line has none of them, so it still selects Russian.
+pub fn has_ukrainian_letter(text: &str) -> bool {
+    text.chars().any(|c| matches!(c, 'і' | 'І' | 'ї' | 'Ї' | 'є' | 'Є' | 'ґ' | 'Ґ'))
+}
+
+/// `requested` is the melody's `language` field: `en` / `ru` / `uk`, or absent. Absent selects
+/// Ukrainian when the line contains і, ї, є or ґ, otherwise Russian for any other Cyrillic, and
+/// English for a Latin line. An explicit `en` stays English even if the line quotes Cyrillic.
 pub fn lyric_language(text: &str, requested: Option<&str>) -> Result<LyricLang, String> {
     let req = requested.map(str::trim).filter(|s| !s.is_empty());
     match req.map(|s| s.to_ascii_lowercase()).as_deref() {
-        None => Ok(if text.chars().any(is_cyrillic) { LyricLang::Ru } else { LyricLang::En }),
+        None => Ok(if has_ukrainian_letter(text) {
+            LyricLang::Uk
+        } else if text.chars().any(is_cyrillic) {
+            LyricLang::Ru
+        } else {
+            LyricLang::En
+        }),
         Some("en" | "english") => Ok(LyricLang::En),
         Some("ru" | "rus" | "russian") => Ok(LyricLang::Ru),
-        Some(other) => Err(format!("unknown language \"{other}\" (expected en or ru)")),
+        Some("uk" | "ukr" | "ukrainian") => Ok(LyricLang::Uk),
+        Some(other) => Err(format!("unknown language \"{other}\" (expected en, ru or uk)")),
     }
 }
 
-/// Lyrics through the shared front end. `english` is ignored for Russian (no dictionary).
+/// Lyrics through the shared front end. `english` is ignored for Russian and Ukrainian.
 pub fn sing_lyrics(text: &str, language: Option<&str>, english: &EnglishG2P) -> Result<Vec<Syllable>, String> {
     Ok(match lyric_language(text, language)? {
         LyricLang::En => lyrics_to_syllables(text, english),
         LyricLang::Ru => lyrics_to_syllables(text, &RussianG2P),
+        LyricLang::Uk => lyrics_to_syllables(text, &UkrainianG2P),
     })
 }

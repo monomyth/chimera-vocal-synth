@@ -23,7 +23,8 @@ use chimera::phonetics::sing::{
 };
 use chimera::phonetics::russian::RussianG2P;
 use chimera::phonetics::songs::DEMO_SONGS;
-use chimera::phonetics::syllables::{LyricLang, lyric_language, lyrics_to_syllables};
+use chimera::phonetics::syllables::{LyricLang, WordSource, lyric_language, lyrics_to_syllables};
+use chimera::phonetics::ukrainian::UkrainianG2P;
 use chimera::phonetics::{Intonation, Plan, Segment, Syllable};
 use chimera::voice::human_voice::{HumanVoice, SCOPE_POINTS, SourcePatch, VoiceTelemetry};
 use std::io::Read;
@@ -195,15 +196,14 @@ fn say_russian(text: &str, body_name: &str) -> Result<Spoken, String> {
     render_spoken(&russian_phrases(text), body_name)
 }
 
-fn flush_russian(delim: char, words: &mut Vec<String>, phrases: &mut Vec<Phrase>) {
+fn flush_cyrillic(delim: char, words: &mut Vec<String>, phrases: &mut Vec<Phrase>, g2p: &impl WordSource) {
     if words.is_empty() {
         return;
     }
-    let g = RussianG2P;
     let mut segs: Vec<Segment> = Vec::new();
     let mut said = Vec::new();
     for w in words.iter() {
-        let mut ws = g.word(w, true);
+        let mut ws = g2p.word(w, true);
         let Some(last) = ws.last_mut() else { continue };
         last.word_end = Some(true);
         segs.append(&mut ws);
@@ -224,6 +224,18 @@ fn flush_russian(delim: char, words: &mut Vec<String>, phrases: &mut Vec<Phrase>
 
 /// Phrases for spoken Russian: the same punctuation pauses as English, speech reduction on.
 fn russian_phrases(text: &str) -> Vec<Phrase> {
+    cyrillic_phrases(text, &RussianG2P)
+}
+
+fn say_ukrainian(text: &str, body_name: &str) -> Result<Spoken, String> {
+    render_spoken(&ukrainian_phrases(text), body_name)
+}
+
+fn ukrainian_phrases(text: &str) -> Vec<Phrase> {
+    cyrillic_phrases(text, &UkrainianG2P)
+}
+
+fn cyrillic_phrases(text: &str, g2p: &impl WordSource) -> Vec<Phrase> {
     let mut phrases = Vec::new();
     let mut words = Vec::new();
     let mut chunk = String::new();
@@ -232,7 +244,7 @@ fn russian_phrases(text: &str) -> Vec<Phrase> {
             if !chunk.is_empty() {
                 words.push(std::mem::take(&mut chunk).to_lowercase());
             }
-            flush_russian(c, &mut words, &mut phrases);
+            flush_cyrillic(c, &mut words, &mut phrases, g2p);
         } else if c.is_whitespace() {
             if !chunk.is_empty() {
                 words.push(std::mem::take(&mut chunk).to_lowercase());
@@ -244,20 +256,23 @@ fn russian_phrases(text: &str) -> Vec<Phrase> {
     if !chunk.is_empty() {
         words.push(chunk.to_lowercase());
     }
-    flush_russian('\0', &mut words, &mut phrases);
+    flush_cyrillic('\0', &mut words, &mut phrases, g2p);
     phrases
 }
 
-/// Text through the phrase planner. Cyrillic selects the Russian reading (speech reduction);
-/// anything else stays on the English dictionary, so an English sentence is unchanged.
-/// `render text <out> ["Text."] [body]`
+/// Text through the phrase planner. An optional language (`en` / `ru` / `uk`) overrides the
+/// letters: Ukrainian letters select Ukrainian, other Cyrillic selects Russian, and a Latin
+/// sentence stays on the English dictionary.
+/// `render text <out> ["Text."] [body] [language]`
 pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     let name = arg(a, 0, "out/text");
     let text = arg(a, 1, "Hello world.");
     let body_name = arg(a, 2, "male");
+    let language = a.get(3).map(|s| s.as_str());
     let t = Instant::now();
-    let s = match lyric_language(text, None)? {
+    let s = match lyric_language(text, language)? {
         LyricLang::Ru => say_russian(text, body_name)?,
+        LyricLang::Uk => say_ukrainian(text, body_name)?,
         LyricLang::En => say(&g2p()?, text, body_name)?,
     };
     let ms = ms_since(t);
@@ -579,6 +594,7 @@ pub fn notes(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     let syl = match lyric_language(lyrics, j["language"].as_str())? {
         LyricLang::En => lyrics_to_syllables(lyrics, &g2p()?),
         LyricLang::Ru => lyrics_to_syllables(lyrics, &RussianG2P),
+        LyricLang::Uk => lyrics_to_syllables(lyrics, &UkrainianG2P),
     };
     let sounding = raw.iter().filter(|n| n[0] > 0.0).count();
     if syl.len() != sounding {

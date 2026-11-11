@@ -1,4 +1,4 @@
-//! Phonetics: IPA, English and Russian G2P, syllables, durations, the gestural planner, singing, beatbox.
+//! Phonetics: IPA, English, Russian and Ukrainian G2P, syllables, durations, the gestural planner, singing, beatbox.
 //! These run off the audio thread (they allocate); their output is a [`Plan`] of gestures that a
 //! voice plays.
 
@@ -12,6 +12,7 @@ pub mod inventory;
 pub mod ipa;
 pub mod planner;
 pub mod russian;
+pub mod ukrainian;
 pub mod sing;
 pub mod songs;
 pub mod syllables;

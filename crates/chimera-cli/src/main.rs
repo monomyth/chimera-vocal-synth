@@ -17,10 +17,10 @@ const USAGE: &str = "\
 usage: chimera <command> [args] [--float]
 
   render speech  <out> [\"ipa / ipa\"] [male|female|child]
-  render text    <out> [\"Text.\"] [male|female|child]  (Cyrillic is spoken as Russian)
+  render text    <out> [\"Text.\"] [male|female|child] [en|ru|uk]  (Cyrillic is Russian unless the letters or the language are Ukrainian)
   render song    [outdir] [male|female|child]
   render notes   <in.json> <out> [male|female|child] [--artic tracks.json] [--tele voice.tele]
-                 (melody file; midi <= 0 is a rest; language \"ru\" sings Cyrillic; --artic writes the articulators at 100 Hz)
+                 (melody file; midi <= 0 is a rest; language \"ru\" or \"uk\" sings Cyrillic; --artic writes the articulators at 100 Hz)
   render beatbox [outdir] [preset name | pattern] [male|female|child] [bpm] [bars]
   render creature [creatureId] [outdir]
   render vowels  [male|female|child] [out]

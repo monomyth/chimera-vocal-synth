@@ -184,9 +184,11 @@ consumption or sums (noise sources, gestures). It retunes nothing. The checks:
   - `telemetry` / `creature_telemetry`.
 - The voices directly: `HumanVoice`, `CreatureVoice`.
 - The planners: `plan_phrases`, `plan_song`, `plan_note_on/off`, `lyrics_to_syllables`, and
-  `EnglishG2P` with a dictionary given as `&str`. `RussianG2P` is the other lyric front end
-  (an authored stress list plus an `-ыва-` rule, not a copied dictionary); `sing_lyrics` picks
-  one, and `render text` speaks Cyrillic the same way. English output is unchanged.
+  `EnglishG2P` with a dictionary given as `&str`. `RussianG2P` and `UkrainianG2P` are the other
+  lyric front ends (authored stress lists, not copied dictionaries); `sing_lyrics` picks one
+  from `language` or the letters, and `render text` speaks the same way. English output is
+  unchanged. Ukrainian does not reduce vowels; `і` `ї` `є` `ґ` select it when `language` is
+  omitted.
 
 JDAW's eventual module trait (note-on/off with lyrics and expression read from the notes) is an
 adapter over these, written when JDAW's module interface exists. Designing it now would be
